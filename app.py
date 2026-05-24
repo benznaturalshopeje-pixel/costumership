@@ -44,7 +44,7 @@ if etapa == "Confirmación de Compra":
 st.sidebar.divider()
 st.sidebar.info("💡 **Consejo:** Use el botón de 'Copy' en la esquina de la caja de texto final para WhatsApp.")
 
-# --- FUNCIÓN PA' SACAR LOS DATOS (EL ARREGLO BULLETPROOF) ---
+# --- FUNCIÓN PA' SACAR LOS DATOS (EL ARREGLO DEL NUMERAL) ---
 def parsear_datos(texto):
     datos = {"nombre": "[NOMBRE]", "direccion": "[DIRECCIÓN]", "ciudad": "[CIUDAD]"}
     if not texto.strip():
@@ -59,28 +59,30 @@ def parsear_datos(texto):
     for i, linea in enumerate(lineas_limpias):
         linea_lower = linea.lower()
         
-        # 1. Pescar Nombre (Basta con que la línea tenga la palabra 'nombre')
+        # 1. Pescar Nombre
         if "nombre" in linea_lower:
             if i + 1 < len(lineas_limpias):
                 temp_nombre = lineas_limpias[i+1]
         
-        # 2. Pescar Apellido (Basta con que la línea tenga la palabra 'apellido')
+        # 2. Pescar Apellido
         elif "apellido" in linea_lower:
             if i + 1 < len(lineas_limpias):
                 temp_apellido = lineas_limpias[i+1]
 
-        # 3. Pescar Dirección Exacta (Mano, este es el machetazo clave)
-        # Si encuentra "direc" o "exacta", sabemos que la línea de abajo es la dirección
+        # 3. Pescar Dirección Exacta y arreglar el OCR
         elif "direc" in linea_lower or "exacta" in linea_lower:
             if i + 1 < len(lineas_limpias):
-                datos["direccion"] = lineas_limpias[i+1].upper()
+                dir_cruda = lineas_limpias[i+1].upper()
+                # AQUÍ ESTÁ EL ARREGLO MANO: Cambiamos el 1T y el IT por #
+                dir_limpia = dir_cruda.replace("1T", "#").replace("IT", "#")
+                datos["direccion"] = dir_limpia
 
         # 4. Pescar Ciudad / City
         elif "city" in linea_lower or "ciudad" in linea_lower or "municipio" in linea_lower:
             if i + 1 < len(lineas_limpias):
                 datos["ciudad"] = lineas_limpias[i+1].upper()
             
-    # Si logramos extraer algo del nombre o apellido, lo unimos limpio
+    # Armar nombre completo
     if temp_nombre or temp_apellido:
         datos["nombre"] = f"{temp_nombre} {temp_apellido}".strip().title()
         
@@ -110,7 +112,7 @@ with tab2:
         except Exception as e:
             st.error(f"Pailas mano, hubo un error procesando la imagen. Error: {e}")
 
-# Procesamos datos sacados con la nueva función permisiva
+# Procesamos datos sacados
 datos_extraidos = parsear_datos(texto_crudo)
 
 st.divider()
