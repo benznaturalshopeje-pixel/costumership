@@ -20,7 +20,7 @@ st.sidebar.header("⚙️ Configuración del Mensaje")
 
 etapa = st.sidebar.selectbox(
     "Etapa del Proceso:",
-    ["Confirmación de Compra", "Envío de Guía", "Novedad de Transportadora"]
+    ["Confirmación de Compra", "Envío de Guía", "Novedad de Transportadora", "Clientes Borradores"]
 )
 
 # Control de Promociones
@@ -44,9 +44,9 @@ if etapa == "Confirmación de Compra":
 st.sidebar.divider()
 st.sidebar.info("💡 **Consejo:** Use el botón de 'Copy' en la esquina de la caja de texto final para WhatsApp.")
 
-# --- FUNCIÓN PA' SACAR LOS DATOS (EL ARREGLO DEL NUMERAL) ---
+# --- FUNCIÓN PA' SACAR LOS DATOS (CON REGLA EXTRA PARA LA GUÍA) ---
 def parsear_datos(texto):
-    datos = {"nombre": "[NOMBRE]", "direccion": "[DIRECCIÓN]", "ciudad": "[CIUDAD]"}
+    datos = {"nombre": "[NOMBRE]", "direccion": "[DIRECCIÓN]", "ciudad": "[CIUDAD]", "guia": "[NÚMERO DE GUÍA]"}
     if not texto.strip():
         return datos
 
@@ -73,7 +73,6 @@ def parsear_datos(texto):
         elif "direc" in linea_lower or "exacta" in linea_lower:
             if i + 1 < len(lineas_limpias):
                 dir_cruda = lineas_limpias[i+1].upper()
-                # AQUÍ ESTÁ EL ARREGLO MANO: Cambiamos el 1T y el IT por #
                 dir_limpia = dir_cruda.replace("1T", "#").replace("IT", "#")
                 datos["direccion"] = dir_limpia
 
@@ -81,6 +80,11 @@ def parsear_datos(texto):
         elif "city" in linea_lower or "ciudad" in linea_lower or "municipio" in linea_lower:
             if i + 1 < len(lineas_limpias):
                 datos["ciudad"] = lineas_limpias[i+1].upper()
+
+        # 5. Pescar Número de Guía (Por si viene en el texto/OCR)
+        elif "guia" in linea_lower or "guía" in linea_lower or "tracking" in linea_lower or "remision" in linea_lower:
+            if i + 1 < len(lineas_limpias):
+                datos["guia"] = lineas_limpias[i+1].upper()
             
     # Armar nombre completo
     if temp_nombre or temp_apellido:
@@ -99,7 +103,7 @@ with tab1:
         texto_crudo = texto_crudo_input
 
 with tab2:
-    imagen_subida = st.file_uploader("Suba el pantallazo del pedido (formatos PNG, JPG):", type=["png", "jpg", "jpeg"])
+    imagen_subida = st.file_uploader("Suba el pantallazo del pedido o de la guía (formatos PNG, JPG):", type=["png", "jpg", "jpeg"])
     if imagen_subida is not None:
         try:
             image = Image.open(imagen_subida)
@@ -117,16 +121,37 @@ datos_extraidos = parsear_datos(texto_crudo)
 
 st.divider()
 
-# --- VERIFICACIÓN DE DATOS ANTES DE GENERAR ---
+# --- VERIFICACIÓN DE DATOS DINÁMICOS ANTES DE GENERAR ---
 st.subheader("✍️ 1. Verifique los datos extraídos")
 st.info("Ajuste los datos si el OCR no leyó bien alguna parte.")
-col1, col2, col3 = st.columns(3)
-with col1:
-    nombre_final = st.text_input("Nombre del Cliente:", value=datos_extraidos["nombre"])
-with col2:
-    direccion_final = st.text_input("Dirección de Envío:", value=datos_extraidos["direccion"])
-with col3:
-    ciudad_final = st.text_input("Ciudad/Municipio:", value=datos_extraidos["ciudad"])
+
+# Inicialización de variables para que no se tote el script
+nombre_final = datos_extraidos["nombre"]
+direccion_final = datos_extraidos["direccion"]
+ciudad_final = datos_extraidos["ciudad"]
+guia_final = datos_extraidos["guia"]
+
+# Aquí está el truco mano: cambian los campos según la etapa elegida
+if etapa == "Clientes Borradores":
+    nombre_final = st.text_input("Nombre del Cliente Borrador:", value=datos_extraidos["nombre"])
+
+elif etapa == "Envío de Guía":
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        nombre_final = st.text_input("Nombre del Cliente:", value=datos_extraidos["nombre"])
+    with col2:
+        ciudad_final = st.text_input("Ciudad/Municipio:", value=datos_extraidos["ciudad"])
+    with col3:
+        guia_final = st.text_input("Número de Guía:", value=datos_extraidos["guia"])
+
+else:  # Confirmación de Compra o Novedad de Transportadora
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        nombre_final = st.text_input("Nombre del Cliente:", value=datos_extraidos["nombre"])
+    with col2:
+        direccion_final = st.text_input("Dirección de Envío:", value=datos_extraidos["direccion"])
+    with col3:
+        ciudad_final = st.text_input("Ciudad/Municipio:", value=datos_extraidos["ciudad"])
 
 # --- LÓGICA DE PLANTILLAS (OUTPUT FINAL) ---
 st.subheader("💬 2. Mensaje de WhatsApp Generado")
@@ -140,9 +165,12 @@ if etapa == "Confirmación de Compra":
         mensaje_final = f"¡Buen día {nombre_final}, soy Angie de Benz Natural Shop, gracias por confiar! 💚 Necesitamos que nos confirmes si estos datos son correctos para enviarte tu pedido de Sognovitta ({promo_seleccionada}):\n📍 Datos de envío: Dirección: {direccion_final}, Ciudad: {ciudad_final}.\n⚠️ Nota de despacho: Debido a la altísima demanda y para asegurar tu unidad, requerimos un pequeño anticipo de seguridad de $10.000 COP para generar la guía hoy mismo. Este valor se descuenta de tu total, por lo que al recibir el producto solo pagarás el saldo de ${precio_saldo} COP en efectivo al mensajero. Por favor, responda con 'CONFIRMAR' para apartar tu pedido."
 
 elif etapa == "Envío de Guía":
-    mensaje_final = f"¡Hola {nombre_final}! 🚛 Excelente noticia, tu pedido de Sognovitta ({promo_seleccionada}) ya va en camino hacia {ciudad_final}. Tu número de guía es: [DEJAR ESPACIO PARA ESCRIBIR GUÍA AQUÍ]. Recuerda tener listo el efectivo (${precio_total} COP) para cuando llegue el mensajero. ¡Cualquier duda nos escribes!"
+    mensaje_final = f"¡Hola {nombre_final}! 🚛 Excelente noticia, tu pedido de Sognovitta ({promo_seleccionada}) ya va en camino hacia {ciudad_final}. Tu número de guía es: {guia_final}. Recuerda tener listo el efectivo (${precio_total} COP) para cuando llegue el mensajero. ¡Cualquier duda nos escribes!"
 
 elif etapa == "Novedad de Transportadora":
     mensaje_final = f"¡Hola {nombre_final}! 🚨 La transportadora nos informa que tu pedido ya está en {ciudad_final} listo para entrega, pero no han podido contactarte. Por favor, confírmanos tu disponibilidad en {direccion_final} para coordinar la entrega y que no devuelvan el paquete."
+
+elif etapa == "Clientes Borradores":
+    mensaje_final = f"¡Hola {nombre_final}! 💚 Te saludamos de Benz Natural Shop. Notamos que estuviste revisando nuestro tratamiento Sognovitta, pero no alcanzaste a finalizar tu pedido. ¡Queremos ayudarte! Cuéntanos si tuviste algún problema con la página o si te quedó alguna duda sobre los beneficios del producto para ayudarte a completarlo hoy mismo con envío gratis."
 
 st.code(mensaje_final, language="text")
